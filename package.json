@@ -1,0 +1,19 @@
+{
+  "name": "dsh-pwsh-fast",
+  "version": "0.1.0",
+  "description": "Skip the pwsh wrapper for DSH hooks on Windows: four seconds off every tool call.",
+  "type": "module",
+  "main": "plugin/index.js",
+  "license": "MIT",
+  "keywords": [
+    "dsh-plugin",
+    "dsh-plugins",
+    "windows",
+    "performance"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yebeimu/dsh-pwsh-fast.git"
+  },
+  "homepage": "https://github.com/Yebeimu/dsh-pwsh-fast#readme"
+}

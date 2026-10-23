@@ -103,7 +103,7 @@ python install.py revert     # 从备份恢复
 
 ## 许可
 
-MIT，见 `LICENSE`。插件和脚本修改的 `@deepseek-ai/dsh-pwsh-local` 同样是 MIT（Copyright (c) 2026 DeepSeek），完整声明一并附在 `LICENSE` 里。
+MIT，见 `LICENSE`。插件和脚本修改的 `@deepseek-ai/dsh-pwsh-local` 同样是 MIT（Copyright (c) 2026 DeepSeek），完整声明在 `NOTICE`。
 
 ---
 
@@ -213,4 +213,4 @@ Timeouts, buffers and exit-code handling are untouched.
 
 ## License
 
-MIT, see `LICENSE`. The `@deepseek-ai/dsh-pwsh-local` package it modifies is MIT as well (Copyright (c) 2026 DeepSeek); the full notice is included in `LICENSE`.
+MIT, see `LICENSE`. The `@deepseek-ai/dsh-pwsh-local` package it modifies is MIT as well (Copyright (c) 2026 DeepSeek); the full notice is in `NOTICE`.
