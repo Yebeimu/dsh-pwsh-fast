@@ -1,11 +1,10 @@
-# DSH on Windows：让钩子不再绕 pwsh
+# DSH on Windows：每次工具调用少等四秒
 
-DeepSeek Harness 起子进程时，会把命令包成
-`pwsh -NoLogo -NoProfile -NonInteractive -Command "<命令>"`。
-钩子和多数工具调用其实只是「可执行文件 + 参数」，这层 shell 包装纯属浪费。
-在 Windows 上，它能让每次钩子多花几秒。
+DeepSeek Harness 每次起子进程，都会把命令包成 `pwsh -NoLogo -NoProfile -NonInteractive -Command "<命令>"`。
 
-这个插件在命令不需要 shell 时直接交给系统创建进程，其余情况原样退回。
+钩子是每次工具调用前后自动跑的小脚本，管权限检查、提示注入、删除拦截这些。它们本身只是一条「可执行文件 + 参数」的命令，用不着 shell。这层包装在 Windows 上能让每个钩子多花几秒，而钩子每调一次工具就跑一遍。
+
+插件做的事很简单：命令不需要 shell 时直接交给系统创建进程，其余照旧走 pwsh。装完之后，每次工具调用少等约四秒。
 
 ## 效果
 
@@ -22,7 +21,7 @@ DeepSeek Harness 起子进程时，会把命令包成
 
 ## 先量一下
 
-装之前先看看你现在有多慢。让它跑一个会触发钩子的操作（比如让助手改一个文件），掐一下从发出到返回的秒数。
+装之前先看看你现在有多慢。让它跑一次工具调用（比如让助手改一个文件），掐一下从发出到返回的秒数。
 
 - 本来就在半秒内：这个插件对你没用，别装。
 - 一两秒以上：值得试。
@@ -108,11 +107,13 @@ MIT，见 `LICENSE`。插件和脚本修改的 `@deepseek-ai/dsh-pwsh-local` 同
 
 ---
 
-# DSH on Windows: stop routing hooks through pwsh
+# DSH on Windows: four seconds off every tool call
 
-DeepSeek Harness wraps every spawned command as `pwsh -NoLogo -NoProfile -NonInteractive -Command "<command>"`. Hooks and most tool calls are just an executable plus arguments — the shell wrapper is pure overhead. On Windows it can add several seconds to every hook.
+Every time DeepSeek Harness spawns a process, it wraps the command as `pwsh -NoLogo -NoProfile -NonInteractive -Command "<command>"`.
 
-This plugin hands such commands straight to the OS and falls back to the original path for everything else.
+Hooks are the small scripts that run around every tool call — permission checks, prompt injection, the delete guard. Each one is just an executable plus arguments; it doesn't need a shell. On Windows that wrapper can add seconds to every hook, and a hook runs on every tool call.
+
+This plugin hands such commands straight to the OS and falls back to pwsh for everything else. The result: about four seconds less waiting per tool call.
 
 **Powered by [DSH](https://github.com/deepseek-ai/deepseek-harness)** — a plugin, not a fork.
 
@@ -131,7 +132,7 @@ These numbers were measured in one environment only: Windows 11, DSH 0.2.1-rc.2,
 
 ## Measure first
 
-Before installing, check how slow you actually are. Run something that triggers a hook (ask the assistant to edit a file, for example) and time it from request to response.
+Before installing, check how slow you actually are. Run one tool call (ask the assistant to edit a file, for example) and time it from request to response.
 
 - Under half a second: the plugin won't help you, skip it.
 - A second or more: worth trying.
