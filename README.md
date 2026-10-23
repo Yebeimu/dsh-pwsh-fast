@@ -1,107 +1,108 @@
-# DSH on Windows：让钩子不再绕 pwsh
+# DSH on Windows: stop routing hooks through pwsh
 
-DeepSeek Harness 起子进程时，会把命令包成
-`pwsh -NoLogo -NoProfile -NonInteractive -Command "<命令>"`。
-钩子和多数工具调用其实只是「可执行文件 + 参数」，这层 shell 包装纯属浪费。
-在 Windows 上，它能让每次钩子多花几秒。
+[中文](README.zh.md) | English
 
-这个插件在命令不需要 shell 时直接交给系统创建进程，其余情况原样退回。
+DeepSeek Harness wraps every spawned command as
+`pwsh -NoLogo -NoProfile -NonInteractive -Command "<command>"`.
+Hooks and most tool calls are just an executable plus arguments — the shell wrapper is pure overhead.
+On Windows it can add several seconds to every hook.
 
-## 效果
+This plugin hands such commands straight to the OS and falls back to the original path for everything else.
 
-同一台机器、同一个 DSH 版本、同样一串工具调用：
+## Result
 
-| | 钩子耗时 |
+Same machine, same DSH version, same sequence of tool calls:
+
+| | Hook time |
 |---|---|
-| 官方原版 | 约 4300 ms |
-| 装插件后 | 约 240 ms |
+| Stock DSH | ~4300 ms |
+| With plugin | ~240 ms |
 
-钩子每次工具调用都要跑一遍，所以体感差别是每次操作省四秒多。
+Hooks run on every tool call, so in practice this saves about four seconds per operation.
 
-这两个数只在一种环境测过：Windows 11、DSH 0.2.1-rc.2、单机。你的机器可能不一样，见下面的「先量一下」。
+These numbers were measured in one environment only: Windows 11, DSH 0.2.1-rc.2, single machine. Yours may differ — see "Measure first".
 
-## 先量一下
+## Measure first
 
-装之前先看看你现在有多慢。让它跑一个会触发钩子的操作（比如让助手改一个文件），掐一下从发出到返回的秒数。
+Before installing, check how slow you actually are. Run something that triggers a hook (ask the assistant to edit a file, for example) and time it from request to response.
 
-- 本来就在半秒内：这个插件对你没用，别装。
-- 一两秒以上：值得试。
+- Under half a second: the plugin won't help you, skip it.
+- A second or more: worth trying.
 
-插件本身是保守的——只有「首 token 是绝对路径、没有 shell 元字符」才直连，其余一律退回原来的 pwsh 路径，命令语义不变。
+The plugin is conservative. It only goes direct when the first token is an absolute path and no shell metacharacter is present; everything else returns to the original pwsh path, so command semantics don't change.
 
-## 安装（推荐：插件）
+## Install (plugin, recommended)
 
-插件不改 `app.asar`，DSH 升级也不失效。
+The plugin never touches `app.asar`, so DSH upgrades won't wipe it.
 
-1. 把 `plugin/index.js` 放到：
+1. Copy `plugin/index.js` to:
 
 ```
 %USERPROFILE%\.dsh\profiles\desktop\plugins\dsh-pwsh-fast\index.js
 ```
 
-2. 在 `%USERPROFILE%\.dsh\profiles\desktop\cordis.patch.yml` 末尾加一段（路径里的用户名换成你的）：
+2. Append this to `%USERPROFILE%\.dsh\profiles\desktop\cordis.patch.yml`, replacing the username:
 
 ```yaml
 - insert:
     - id: "dsh-pwsh-fast"
-      name: "file:///C:/Users/<你的用户名>/.dsh/profiles/desktop/plugins/dsh-pwsh-fast/index.js"
+      name: "file:///C:/Users/<your-name>/.dsh/profiles/desktop/plugins/dsh-pwsh-fast/index.js"
 ```
 
-3. 重启 DSH。
+3. Restart DSH.
 
-想确认有没有生效，把 `index.js` 里的 `DEBUG` 改成 `true`，重启后跑几个工具调用，同目录会出现 `pwsh-fast.log`，里面会写哪些命令走了直连、哪些退回。
+To confirm it's active, set `DEBUG` to `true` in `index.js` and restart. After a few tool calls, `pwsh-fast.log` will appear next to the file, listing which commands went direct and which fell back.
 
-## 卸载
+## Uninstall
 
-从 `cordis.patch.yml` 删掉那一段，重启，就回到原样。`app.asar` 从头到尾没被改过。
+Remove that block from `cordis.patch.yml` and restart. `app.asar` was never modified.
 
-## 备选：改 app.asar
+## Alternative: patch app.asar
 
-如果你的 DSH 版本拿不到 `PwshLocalExecutor`（插件启动时会静默跳过），可以改用 `install.py` 直接改 `app.asar`。
+If your DSH version doesn't expose `PwshLocalExecutor` (the plugin exits silently), use `install.py` instead.
 
 ```
-python install.py            # 只看，不改
-python install.py install    # 备份后安装
-python install.py revert     # 从备份恢复
+python install.py            # check only
+python install.py install    # back up, then patch
+python install.py revert     # restore from backup
 ```
 
-脚本会做这些：
+What the script does:
 
-1. 读目标文件的 SHA-256。与官方原版一致才继续；
-2. 与「已装补丁」的指纹一致就直接退出；
-3. 与两个都不一致，说明 DSH 版本变了，拒绝执行；
-4. 装之前把整个 `app.asar` 复制成 `app.asar.bak-<时间戳>`；
-5. 新文件先写成 `app.asar.new`，校验头部结构，通过才替换。
+1. Reads the SHA-256 of the target file. Proceeds only if it matches the stock build.
+2. Exits immediately if the file already matches the patched fingerprint.
+3. Refuses to run if neither matches — that means DSH was upgraded.
+4. Copies the whole `app.asar` to `app.asar.bak-<timestamp>` first.
+5. Writes the new file as `app.asar.new`, validates the header structure, then swaps it in.
 
-改 `app.asar` 前必须先完全退出 DSH，文件被占用时无法替换。
+DSH must be fully closed before patching; the file is locked while it runs.
 
-## 它做了什么
+## What it changes
 
-插件和 `install.py` 改的是同一处逻辑。
+The plugin and `install.py` implement the same logic.
 
-文件：`dsh/node_modules/@deepseek-ai/dsh-pwsh-local/lib/index.js`
+File: `dsh/node_modules/@deepseek-ai/dsh-pwsh-local/lib/index.js`
 
-内容：`PwshLocalExecutor.prototype.argv(spec)` 原本无条件返回 pwsh 包装的 argv。
-现在先调一次 `splitSimpleCommand(command)`，切成 argv 就直连；切不了就原样回退。
+`PwshLocalExecutor.prototype.argv(spec)` originally returned the pwsh-wrapped argv unconditionally. It now calls `splitSimpleCommand(command)` first: if the command splits into argv, it goes direct; otherwise it falls back unchanged.
 
-切不了的情况：
+When it refuses to go direct:
 
-- 管道、重定向、`;`、`$`、反引号、`#`
-- 换行或回车
-- 弯引号（PowerShell 认、切词器不认）
-- 引号不配对
-- 首 token 不是绝对路径
-- 目标是 `.cmd` / `.bat` / `.ps1`（这些必须经 shell）
-- 参数里带 `--%`
+- Pipes, redirection, `;`, `$`, backticks, `#`
+- Newlines or carriage returns
+- Smart quotes (PowerShell treats them as quotes, the tokenizer doesn't)
+- Unbalanced quotes
+- First token is not an absolute path
+- Target is `.cmd` / `.bat` / `.ps1` (these need a shell)
+- Any argument contains `--%`
 
-没有改超时、缓冲区、退出码处理。
+Timeouts, buffers and exit-code handling are untouched.
 
-## 已知边界
+## Known limits
 
-- **退出码**：直连保留原退出码；经 pwsh 包装时 2 和 7 会被转成 1。DSH 只把 `2` 当 block 语义、`0` 当解析 JSON。查过 16041 次钩子调用，`exit 2` 一次都没出现。
-- **大输出**：2000 行完整返回，尾部标记在。
-- **版本绑定**：`install.py` 按文件指纹认版本，DSH 升级后指纹会变，脚本会拒绝执行。插件不绑版本，升级后照常工作。
+- **Exit codes**: direct execution preserves the original code; through pwsh, 2 and 7 are rewritten to 1. DSH only treats `2` as a block signal and `0` as "parse JSON". Across 16,041 hook invocations on the test machine, `exit 2` never occurred.
+- **Large output**: 2,000 lines came back complete, tail marker intact.
+- **Version pinning**: `install.py` identifies versions by file fingerprint and refuses to run after a DSH upgrade. The plugin isn't version-bound and keeps working.
 
-## 许可
+## License
 
-MIT，见 `LICENSE`。插件和脚本修改的 `@deepseek-ai/dsh-pwsh-local` 同样是 MIT（Copyright (c) 2026 DeepSeek），完整声明一并附在 `LICENSE` 里。
+MIT, see `LICENSE`. The `@deepseek-ai/dsh-pwsh-local` package it modifies is MIT as well (Copyright (c) 2026 DeepSeek); the full notice is included in `LICENSE`.
